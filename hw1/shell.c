@@ -118,14 +118,12 @@ int exe_program(struct tokens *tokens) {
     return 0;
   }
 
-  char **argv2exe = (char **)calloc(token_length, sizeof(char *));
+  char **argv2exe = (char **)calloc(token_length + 1, sizeof(char *));
   for (int i = 0; i < token_length; ++i) {
     argv2exe[i] = tokens_get_token(tokens, i);
   }
-
-  for (int i = 0; i < token_length; ++i) {
-    printf("%s\n", argv2exe[i]);
-  }
+  // Attentin! Must set the last to \0
+  argv2exe[token_length] = (char *)NULL;
 
   int status = execv(argv2exe[0], argv2exe);
   free(argv2exe);
