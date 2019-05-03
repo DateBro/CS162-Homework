@@ -12,6 +12,10 @@
 
 #include "tokenizer.h"
 
+/* self build function */
+int exe_program(struct tokens *tokens);
+char* resolve_path(char *file);
+
 /* Convenience macro to silence compiler warnings about unused function parameters. */
 #define unused __attribute__((unused))
 
@@ -112,23 +116,7 @@ void init_shell() {
   }
 }
 
-int exe_program(struct tokens *tokens) {
-  int token_length = tokens_get_length(tokens);
-  if (token_length <= 0) {
-    return 0;
-  }
 
-  char **argv2exe = (char **)calloc(token_length + 1, sizeof(char *));
-  for (int i = 0; i < token_length; ++i) {
-    argv2exe[i] = tokens_get_token(tokens, i);
-  }
-  // Attentin! Must set the last to \0
-  argv2exe[token_length] = (char *)NULL;
-
-  int status = execv(argv2exe[0], argv2exe);
-  free(argv2exe);
-  return status;
-}
 
 int main(unused int argc, unused char *argv2exe[]) {
   init_shell();
@@ -159,7 +147,6 @@ int main(unused int argc, unused char *argv2exe[]) {
           printf("%d:%s\n", status, "Program execute error");
         }
         exit(status);
-        // return 1;
       } else if(pid > 0) {
         waitpid(pid, &status, 0);
       } else {
@@ -176,4 +163,54 @@ int main(unused int argc, unused char *argv2exe[]) {
   }
 
   return 0;
+}
+
+int exe_program(struct tokens *tokens) {
+  int token_length = tokens_get_length(tokens);
+  if (token_length <= 0) {
+    return 0;
+  }
+
+  char **argv2exe = (char **)calloc(token_length + 1, sizeof(char *));
+  for (int i = 0; i < token_length; ++i) {
+    argv2exe[i] = tokens_get_token(tokens, i);
+  }
+  // Attentin! Must set the last to NULL or maybe can use char *[]
+  argv2exe[token_length] = (char *)NULL;
+
+  char *complete_file_path = resolve_path(argv2exe[0]);
+  int status = execv(complete_file_path, argv2exe);
+  free(argv2exe);
+  return status;
+}
+
+char* resolve_path(char *file) {
+  char *PATH = getenv("PATH");
+  char *file_path = (char *)calloc(1024, sizeof(char));
+  char *current_path_ptr = PATH;
+
+  while(true) {
+    char *next_path_ptr = strchr(current_path_ptr, ':');
+    if(!next_path_ptr) {
+      next_path_ptr = strchr(current_path_ptr, '0');
+    }
+    size_t len = next_path_ptr - current_path_ptr;
+    strncpy(file_path, current_path_ptr, len);
+    file_path[len] = 0;
+
+    strcat(file_path, "/");
+    strcat(file_path, file);
+    if(!access(file_path, F_OK)) {
+      return file_path;
+    }
+    
+    if(*next_path_ptr) {
+      current_path_ptr = next_path_ptr + 1;
+    } else {
+      break;
+    }
+  }
+
+  free(file_path);
+  return NULL;
 }
