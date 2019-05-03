@@ -1,0 +1,17 @@
+1, main and recur are in .text
+	
+2, 
+    .text is used for instructions that are going to be executed (ie functions)
+    .data is for static variables
+    .bss has unitialized variables that are all zeroes
+
+3,
+downward
+
+4,
+
+5, 
+top of the stack, growing upwards
+
+6,
+no

@@ -1,0 +1,10 @@
+1,  文件格式 elf64-x86-64    
+    体系结构：i386:x86-64
+
+2, Program Header, Dynamic Section, Version References, Sections, Symbol Table
+
+3, 
+Symbol Table, 0x00005555555547d9
+
+4,
+The heap and the stack don't get segments because they are dynamic data structures. Meaning that the compiler can't give out fixed memory addresses for them because no fixed layout exists. 

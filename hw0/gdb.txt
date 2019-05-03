@@ -1,0 +1,28 @@
+1, argv         (char **) 0x7fffffffde58
+
+2, pointed to by argv   0x7fffffffe1ec "/home/datebro/MyGithub/ta/hw0/wc"
+
+3, 0x00005555555547d9
+
+4, 
+output
+```
+#0  main (argc=2, argv=0x7fffffffde58) at wc.c:12
+```
+
+Explanation:   现在执行到了 wc.c 的第 12 行，argc=2...
+
+5,
+output:
+```
+Stack level 0, frame at 0x7fffffffdd80:
+ rip = 0x5555555547f7 in main (wc.c:12); saved rip = 0x7ffff7a05b97
+ source language c.
+ Arglist at 0x7fffffffdd70, args: argc=2, argv=0x7fffffffde58
+ Locals at 0x7fffffffdd70, Previous frame's sp is 0x7fffffffdd80
+ Saved registers:
+  rbp at 0x7fffffffdd70, rip at 0x7fffffffdd78
+```
+
+6,
+rsi hold the address of argv
