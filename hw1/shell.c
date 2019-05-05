@@ -9,6 +9,9 @@
 #include <sys/wait.h>
 #include <termios.h>
 #include <unistd.h>
+#include <sys/types.h>
+#include <fcntl.h>
+#include <sys/stat.h>
 
 #include "tokenizer.h"
 
@@ -70,16 +73,18 @@ int cmd_pwd(unused struct tokens *tokens) {
   char buf[1024];
 	getcwd(buf, 1024);
   printf("%s\n", buf);
+  return 1;
 }
 
 /* changes the current working directory to that directory */
 int cmd_cd(struct tokens *tokens) {
   char *directory2change = tokens_get_token(tokens, 1);
-  if(directory2change==NULL) {
+  if(directory2change == NULL) {
     printf("%s\n","Please type directory path");
   } else {
     chdir(directory2change);
   }
+  return 1;
 }
 
 /* Looks up the built-in command, if it exists. */
@@ -171,12 +176,46 @@ int exe_program(struct tokens *tokens) {
     return 0;
   }
 
+  char *file2redirect;
+
   char **argv2exe = (char **)calloc(token_length + 1, sizeof(char *));
+  int argv_index = 0;
   for (int i = 0; i < token_length; ++i) {
-    argv2exe[i] = tokens_get_token(tokens, i);
+    char *current_token = tokens_get_token(tokens, i);
+    bool in_redirect = !strcmp(current_token, "<");
+    bool out_redirect = !strcmp(current_token, ">");
+
+    if(!(in_redirect || out_redirect)){
+      argv2exe[argv_index++] = current_token;
+    } else {
+      file2redirect = tokens_get_token(tokens, ++i);
+      int redirect_fd, origin_fd;
+      if(in_redirect){
+        redirect_fd = open(file2redirect, O_RDWR);
+        origin_fd = STDIN_FILENO;
+      } else {
+        // open(file2redirect, O_WRONLY | O_APPEND | O_CREAT, 0644); 不知道为什么并不会创建文件...
+        redirect_fd = creat(file2redirect,  S_IRUSR | S_IWUSR |
+                                            S_IRGRP | S_IWGRP |
+                                            S_IROTH | S_IWOTH);
+        origin_fd = STDOUT_FILENO;
+      }
+
+      if(redirect_fd == -1) {
+        printf("open file error.\n");
+        return -1;
+      }
+      int redirect_status = dup2(redirect_fd, origin_fd);
+      if(redirect_status == -1) {
+        printf("redirect standard out error.\n");
+        return -1;
+      }
+
+      break;
+    }
   }
   // Attentin! Must set the last to NULL or maybe can use char *[]
-  argv2exe[token_length] = (char *)NULL;
+  argv2exe[argv_index] = (char *)NULL;
 
   char *complete_file_path = resolve_path(argv2exe[0]);
   int status = execv(complete_file_path, argv2exe);
