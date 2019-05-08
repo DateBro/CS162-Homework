@@ -146,14 +146,39 @@ int main(unused int argc, unused char *argv2exe[]) {
       /* REPLACE this to run commands as programs. */
       pid_t pid = fork();
       int status;
-      if(pid == 0){
+
+      if(pid == 0) {
         status = exe_program(tokens);
-        if(status < 0) {
+        if(status < 0)
           printf("%d:%s\n", status, "Program execute error");
-        }
         exit(status);
       } else if(pid > 0) {
-        waitpid(pid, &status, 0);
+        if(setpgid(pid, pid) == -1) {
+          printf("Child setpgid error!\n");
+        }
+
+        /* When successful, tcsetpgrp() returns 0. Otherwise, it returns -1, and errno is set appropriately. */
+        if(tcsetpgrp(shell_terminal, pid) == 0) {
+          if ((waitpid(pid, &status, WUNTRACED)) < 0) {
+            perror("wait failed");
+            _exit(2);
+          }
+
+          if (WIFSTOPPED(status))
+            printf("Process #%d stopped.\n", pid);
+          if (WIFCONTINUED(status))
+            printf("Process #%d continued.\n", pid);
+
+          signal(SIGTTOU, SIG_IGN);
+          if(tcsetpgrp(shell_terminal, shell_pgid) != 0) {
+            printf("switch to shell error occurred!\n");
+          }
+          signal(SIGTTOU, SIG_DFL);
+
+        } else {
+          printf("tcsetpgrp error occurred\n");
+        }
+
       } else {
         printf("%s\n", "fork error");
       }
