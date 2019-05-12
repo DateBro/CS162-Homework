@@ -38,6 +38,7 @@ int cmd_exit(struct tokens *tokens);
 int cmd_help(struct tokens *tokens);
 int cmd_pwd(struct tokens *tokens);
 int cmd_cd(struct tokens *tokens);
+int cmd_wait(struct tokens *tokens);
 
 /* Built-in command functions take token array (see parse.h) and return int */
 typedef int cmd_fun_t(struct tokens *tokens);
@@ -54,6 +55,7 @@ fun_desc_t cmd_table[] = {
   {cmd_exit, "exit", "exit the command shell"},
   {cmd_pwd, "pwd", "prints the current working directory to standard output"},
   {cmd_cd, "cd", "changes the current working directory to that directory"},
+  {cmd_wait, "wait", "waits until all background jobs have terminated before returning to the prompt"}
 };
 
 /* Prints a helpful description for the given command */
@@ -85,6 +87,22 @@ int cmd_cd(struct tokens *tokens) {
     chdir(directory2change);
   }
   return 1;
+}
+
+/* waits until all background jobs have terminated before returning to the prompt. */
+int cmd_wait(struct tokens *tokens) {
+  int status;
+  pid_t pid;
+  while(pid = wait(&status)) {
+    if(pid == -1){
+      printf("wait child error.\n");
+      break;
+    } else {
+      printf("child #%d terminated.\n", pid);
+      break;
+    }
+  }
+  return 0;
 }
 
 /* Looks up the built-in command, if it exists. */
@@ -147,36 +165,41 @@ int main(unused int argc, unused char *argv2exe[]) {
       pid_t pid = fork();
       int status;
 
+      int token_length = tokens_get_length(tokens);
+      if (token_length <= 0)
+      return 0;
+      bool run_background = !strcmp(tokens_get_token(tokens, token_length - 1), "&");
+
       if(pid == 0) {
         status = exe_program(tokens);
         if(status < 0)
           printf("%d:%s\n", status, "Program execute error");
         exit(status);
       } else if(pid > 0) {
-        if(setpgid(pid, pid) == -1) {
+        if(!run_background){
+          if(setpgid(pid, pid) == -1)
           printf("Child setpgid error!\n");
-        }
 
-        /* When successful, tcsetpgrp() returns 0. Otherwise, it returns -1, and errno is set appropriately. */
-        if(tcsetpgrp(shell_terminal, pid) == 0) {
-          if ((waitpid(pid, &status, WUNTRACED)) < 0) {
-            perror("wait failed");
-            _exit(2);
+          /* When successful, tcsetpgrp() returns 0. Otherwise, it returns -1, and errno is set appropriately. */
+          if(tcsetpgrp(shell_terminal, pid) == 0) {
+            if ((waitpid(pid, &status, WUNTRACED)) < 0) {
+              perror("wait failed");
+              _exit(2);
+            }
+
+            if (WIFSTOPPED(status))
+              printf("Process #%d stopped.\n", pid);
+            if (WIFCONTINUED(status))
+              printf("Process #%d continued.\n", pid);
+
+            signal(SIGTTOU, SIG_IGN);
+            if(tcsetpgrp(shell_terminal, shell_pgid) != 0)
+              printf("switch to shell error occurred!\n");
+            signal(SIGTTOU, SIG_DFL);
+
+          } else {
+            printf("tcsetpgrp error occurred\n");
           }
-
-          if (WIFSTOPPED(status))
-            printf("Process #%d stopped.\n", pid);
-          if (WIFCONTINUED(status))
-            printf("Process #%d continued.\n", pid);
-
-          signal(SIGTTOU, SIG_IGN);
-          if(tcsetpgrp(shell_terminal, shell_pgid) != 0) {
-            printf("switch to shell error occurred!\n");
-          }
-          signal(SIGTTOU, SIG_DFL);
-
-        } else {
-          printf("tcsetpgrp error occurred\n");
         }
 
       } else {
@@ -197,9 +220,8 @@ int main(unused int argc, unused char *argv2exe[]) {
 
 int exe_program(struct tokens *tokens) {
   int token_length = tokens_get_length(tokens);
-  if (token_length <= 0) {
+  if (token_length <= 0)
     return 0;
-  }
 
   char *file2redirect;
 
@@ -211,7 +233,8 @@ int exe_program(struct tokens *tokens) {
     bool out_redirect = !strcmp(current_token, ">");
 
     if(!(in_redirect || out_redirect)){
-      argv2exe[argv_index++] = current_token;
+      if(strcmp(current_token, "&"))
+        argv2exe[argv_index++] = current_token;
     } else {
       file2redirect = tokens_get_token(tokens, ++i);
       int redirect_fd, origin_fd;
